@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alertas Rio Madeira — Freechains</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --txt:#e2e8f0; --mut:#94a3b8;
+          --red:#ef4444; --amber:#f59e0b; --green:#22c55e; --blue:#3b82f6; --purple:#a855f7; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--txt); }
+  header { display:flex; align-items:center; gap:16px; padding:12px 20px; background:#020617; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; flex:1; }
+  select, input, textarea, button { font:inherit; color:var(--txt); background:#0b1220; border:1px solid var(--line); border-radius:8px; padding:7px 10px; }
+  button { cursor:pointer; background:var(--blue); border:none; font-weight:600; }
+  button.sec { background:#334155; } button.red { background:var(--red); } button.green { background:var(--green); color:#052e16; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .me { font-size:13px; color:var(--mut); } .me b { color:var(--txt); }
+  main { display:grid; grid-template-columns: 1fr 340px; gap:18px; padding:18px 20px; }
+  @media (max-width: 900px) { main { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+  h2 { font-size:15px; margin:0 0 10px; color:var(--mut); text-transform:uppercase; letter-spacing:.05em; }
+  textarea { width:100%; min-height:60px; resize:vertical; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  .alert { border-left:6px solid var(--line); }
+  .alert.PENDENTE { border-left-color:#64748b; }
+  .alert.ATIVO { border-left-color:var(--red); }
+  .alert.CONFIRMADO { border-left-color:var(--red); animation:pulse 1.6s infinite; }
+  .alert.ENCERRADO { border-left-color:var(--green); opacity:.8; }
+  @keyframes pulse { 50% { box-shadow:0 0 0 4px rgba(239,68,68,.35); } }
+  .badge { display:inline-block; font-size:11px; font-weight:800; padding:2px 9px; border-radius:99px; letter-spacing:.04em; }
+  .b-PENDENTE { background:#475569; } .b-ATIVO { background:var(--red); } .b-CONFIRMADO { background:#b91c1c; }
+  .b-ENCERRADO { background:var(--green); color:#052e16; } .b-REVOGADO { background:#000; border:1px solid var(--red); }
+  .b-COORDENADOR { background:var(--purple); } .b-CONFIRMADOR { background:var(--blue); } .b-membro { background:#475569; }
+  .meta { font-size:12px; color:var(--mut); margin-top:4px; }
+  .body { white-space:pre-wrap; margin:8px 0; font-size:15px; }
+  .thread { margin:8px 0 0 10px; border-left:2px dashed var(--line); padding-left:10px; }
+  .tp { font-size:13px; margin:6px 0; white-space:pre-wrap; } .tp .tag { font-weight:700; color:var(--amber); }
+  .tp.rev { color:var(--mut); text-decoration:line-through; }
+  .bar { height:8px; background:#0b1220; border-radius:99px; overflow:hidden; margin-top:6px; }
+  .bar > div { height:100%; background:linear-gradient(90deg,var(--blue),var(--green)); }
+  table { width:100%; border-collapse:collapse; font-size:13px; } td { padding:5px 4px; border-bottom:1px solid var(--line); }
+  .sug { background:#0b1220; border:1px solid var(--amber); border-radius:8px; padding:8px; margin-top:8px; font-size:13px; }
+  #toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); padding:10px 16px; border-radius:10px; background:#020617; border:1px solid var(--line); display:none; max-width:90%; }
+  #toast.err { border-color:var(--red); color:#fecaca; } #toast.ok { border-color:var(--green); }
+  details summary { cursor:pointer; color:var(--mut); font-size:13px; margin-top:8px; }
+  .mut { color:var(--mut); font-size:13px; }
+  dialog { background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:12px; max-width:560px; width:92%; }
+  dialog::backdrop { background:rgba(0,0,0,.6); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🚨 Alertas Rio Madeira <span class="mut">· sobre Freechains</span></h1>
+  <label class="mut">Usuário (nó): <select id="user"></select></label>
+  <span class="me" id="me"></span>
+  <button class="green" id="btnColetar" onclick="coletarDiario()">🎁 Coletar Reps Diários (+1.000)</button>
+  <label class="mut" title="tempo simulado (--now), opcional">⏱ <input id="now" placeholder="--now (opcional)" size="12"></label>
+  <button class="sec" onclick="acao({acao:'sync'})">⇄ Sincronizar</button>
+  <button class="sec" onclick="carregar()">↻</button>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>📢 Emitir alerta</h2>
+      <textarea id="novoAlerta" placeholder="Ex.: Rio subiu 2 m em 3 h. Rua Amazonas alagada."></textarea>
+      <div class="row">
+        <button class="red" onclick="emitir('alertar')">Emitir alerta</button>
+        <button class="sec" onclick="emitir('info')">Publicar informação (rota/abrigo)</button>
+        <label class="mut"><input type="checkbox" id="beg"> sem reps (--beg)</label>
+      </div>
+      <div class="meta" id="dicaEstado"></div>
+    </div>
+    <div id="alertas"></div>
+    <div class="card" id="revBox" style="display:none">
+      <h2>🚫 Revogados pela comunidade</h2><div id="revogados"></div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>🎁 Coleta Diária de Reps (1x/dia)</h2>
+      <div id="statusColeta" class="mut" style="margin-bottom:8px"></div>
+      <button class="green" id="btnColetarCard" style="width:100%" onclick="coletarDiario()">🎁 Coletar +1.000 Reps Diários</button>
+    </div>
+    <div class="card">
+      <h2>🏅 Reputação</h2>
+      <table id="ranking"></table>
+      <p class="mut" id="limiares"></p>
+    </div>
+    <div class="card">
+      <h2>🗺️ Memória: rotas e abrigos</h2>
+      <div id="infos" class="mut"></div>
+    </div>
+  </aside>
+</main>
+
+<dialog id="dlg"><div id="dlgBody"></div><div class="row"><button class="sec" onclick="dlg.close()">Fechar</button></div></dialog>
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+let EST = null;
+const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const user = () => $('#user').value;
+const now = () => $('#now').value.trim() || null;
+const qs = o => new URLSearchParams(Object.entries(o).filter(([,v]) => v != null)).toString();
+const tempo = t => t ? new Date(t*1000).toLocaleString('pt-BR') : '';
+
+function toast(msg, err) {
+  const t = $('#toast'); t.textContent = msg; t.className = err ? 'err' : 'ok'; t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', 4500);
+}
+
+async function get(path, o) {
+  const r = await fetch(path + '?' + qs({usuario:user(), now:now(), ...o}));
+  const j = await r.json(); if (!r.ok) throw new Error(j.erro); return j;
+}
+
+async function acao(body) {
+  document.querySelectorAll('button').forEach(b => b.disabled = true);
+  try {
+    const r = await fetch('/api/acao', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({usuario:user(), now:now(), ...body})});
+    const j = await r.json(); if (!r.ok) throw new Error(j.erro);
+    toast('✔ ' + j.ok); await carregar();
+  } catch (e) { toast('✖ ' + e.message, true); await carregar(); }
+}
+
+function emitir(tipo) {
+  const texto = $('#novoAlerta').value.trim(); if (!texto) return toast('Escreva o texto', true);
+  acao({acao:tipo, texto, beg:$('#beg').checked}).then(() => $('#novoAlerta').value = '');
+}
+
+function coletarDiario() {
+  acao({acao:'coletar', beg:$('#beg').checked});
+}
+
+async function carregar() {
+  document.querySelectorAll('button').forEach(b => b.disabled = false);
+  try { EST = await get('/api/estado'); } catch (e) { return toast('✖ ' + e.message, true); }
+  if (!$('#user').options.length) {
+    $('#user').innerHTML = EST.usuarios.map(u => `<option>${esc(u)}</option>`).join('');
+    $('#user').value = EST.usuario;
+  }
+  const L = EST.limiares;
+  $('#me').innerHTML = `<b>${EST.meus_reps}</b> reps · <span class="badge b-${EST.meu_papel}">${EST.meu_papel}</span>`;
+  $('#dicaEstado').textContent = EST.meus_reps <= 0
+      ? 'Você não tem reps: o protocolo bloqueia posts. Use "sem reps (--beg)" e aguarde um like.'
+      : EST.meus_reps >= L.ativo ? `Seus alertas nascem ATIVOS (≥ ${L.ativo} reps).`
+      : `Seus alertas nascem PENDENTES e precisam de ${L.confirmacoes} confirmações de membros com ≥ ${L.confirmador} reps.`;
+  $('#limiares').innerHTML = `ATIVO ≥ ${L.ativo} · confirmador ≥ ${L.confirmador} · coordenador ≥ ${L.coordenador}<br>
+     <i>Limiares da aplicação (UI), não do protocolo.</i>`;
+
+  const ja = EST.coletado_hoje;
+  const seq = EST.sequencia || 0;
+  $('#btnColetar').disabled = ja;
+  $('#btnColetarCard').disabled = ja;
+  $('#btnColetar').textContent = ja ? `✔ Coletado hoje (🔥 ${seq}d)` : '🎁 Coletar Reps Diários (+1.000)';
+  $('#btnColetarCard').textContent = ja ? `✔ Já coletado hoje (volte amanhã)` : '🎁 Coletar +1.000 Reps Diários';
+  $('#statusColeta').innerHTML = ja
+      ? `<b>🔥 Sequência: ${seq} dia(s) ativo(s).</b> Você já fez sua coleta hoje (limite: 1x/dia). Em 24h o protocolo consolida e credita +1.000 reps.`
+      : `Usuários ativos podem coletar <b>1x por dia</b> (+1.000 reps após 24h pela Regra 1.b de consolidação). Sequência atual: <b>🔥 ${seq} dia(s)</b>.`;
+
+  const max = Math.max(1, ...EST.ranking.map(r => r.reps));
+  $('#ranking').innerHTML = EST.ranking.map(r => `<tr>
+     <td>${esc(r.nome)}<div class="bar"><div style="width:${Math.max(0,r.reps)/max*100}%"></div></div></td>
+     <td style="text-align:right"><b>${r.reps}</b><br><span class="badge b-${r.papel}">${r.papel}</span></td></tr>`).join('');
+
+  $('#infos').innerHTML = EST.infos.length ? EST.infos.map(i =>
+     `<div class="tp">• ${esc(i.texto)} <span class="meta">— ${esc(i.autor)}</span></div>`).join('') : 'Nenhuma ainda.';
+
+  $('#alertas').innerHTML = EST.alertas.length ? EST.alertas.map(cardAlerta).join('')
+      : '<div class="card mut">Nenhum alerta na chain.</div>';
+
+  $('#revBox').style.display = EST.revogados.length ? '' : 'none';
+  $('#revogados').innerHTML = EST.revogados.map(p => `<div class="tp rev">[${p.curto}] post de ${esc(p.autor)} — conteúdo oculto, metadados no DAG
+     <button class="sec" onclick="revogar('${p.id}','unrevoke')">desfazer revogação</button></div>`).join('');
+}
+
+function cardAlerta(a) {
+  const enc = a.status === 'ENCERRADO';
+  const souAutor = a.autor === EST.usuario;
+  const souCoord = EST.meu_papel === 'COORDENADOR';
+  const jaConfirmei = a.confirmacoes.includes(EST.usuario);
+  const podeEncerrar = souCoord || (souAutor && a.status === 'PENDENTE');
+  const conf = a.confirmacoes.length ? `✔ confirmado por: ${a.confirmacoes.map(esc).join(', ')}` :
+               (enc ? 'encerrado sem confirmações externas' : `aguardando ${EST.limiares.confirmacoes} confirmações válidas`);
+  const thread = a.thread.map(p => `<div class="tp ${p.revogado?'rev':''}"><span class="tag">${p.tag}</span>
+      <b>${esc(p.autor)}</b> <span class="meta">(${p.reps_autor} reps · ${tempo(p.tempo)})</span>
+      ${p.revogado ? ' — revogado' : '<br>' + esc(p.texto)}
+      ${(p.revogado || p.autor === EST.usuario) ? '' : `<button class="sec" onclick="votar('${p.id}','like')">👍</button>
+      <button class="sec" onclick="votar('${p.id}','dislike')">👎</button>`}</div>`).join('');
+  return `<div class="card alert ${a.status}">
+    <span class="badge b-${a.status}">${a.status}</span>
+    <span class="meta"> [${a.curto}] por <b>${esc(a.autor)}</b> (${a.reps_autor} reps) · ${tempo(a.tempo)} · reps do post: ${a.reps_post}</span>
+    <div class="body">${esc(a.texto)}</div>
+    <div class="meta">${conf}</div>
+    ${thread ? `<div class="thread">${thread}</div>` : ''}
+    <div class="row">
+      ${enc ? '' : `
+      ${(souAutor || jaConfirmei) ? '' : `<button onclick="confirmar('${a.id}')">✅ Confirmar</button>`}
+      ${souCoord ? `<button class="sec" onclick="protocolo('${a.id}')">🚀 Protocolo</button>` : ''}
+      <button class="sec" onclick="coord('${a.id}')">🧭 Coordenar</button>
+      ${podeEncerrar ? `<button class="green" onclick="encerrar('${a.id}')">🏁 Encerrar</button>` : ''}`}
+      <button class="sec" onclick="avaliacao('${a.id}')">⭐ Participantes / avaliar</button>
+      ${souAutor ? '' : `<button class="sec" onclick="votar('${a.id}','like')">👍</button>
+      <button class="sec" onclick="votar('${a.id}','dislike')">👎 falso</button>`}
+      <button class="sec" onclick="revogar('${a.id}','revoke')">🚫 Revogar</button>
+    </div></div>`;
+}
+
+function confirmar(id) {
+  const texto = prompt('Texto da confirmação:', 'Confirmo, estou no local.'); if (!texto) return;
+  const like = prompt('Dar like no alerta? Valor em reps (0 = não):', '1000');
+  acao({acao:'confirmar', alerta:id, texto, like:+like||0});
+}
+function coord(id) { const t = prompt('Mensagem de coordenação:'); if (t) acao({acao:'coord', alerta:id, texto:t}); }
+function encerrar(id) { const t = prompt('Mensagem de encerramento:', 'Todos resgatados.'); if (t) acao({acao:'encerrar', alerta:id, texto:t}); }
+function votar(id, tipo) {
+  const n = prompt(`${tipo} — quantos reps?`, tipo === 'like' ? '500' : '300'); if (!n) return;
+  acao({acao:tipo, post:id, n:+n, motivo:prompt('Motivo (opcional):') || ''});
+}
+function revogar(id, tipo) { const n = prompt(`${tipo} — quantos reps?`, '1000'); if (n) acao({acao:tipo, post:id, n:+n}); }
+
+async function protocolo(id) {
+  let s; try { s = await get('/api/sugestoes', {alerta:id}); } catch (e) { return toast(e.message, true); }
+  $('#dlgBody').innerHTML = `<h2>🚀 Protocolo de resposta</h2>
+    ${s.sugestoes.length ? `<div class="sug"><b>💡 Memória da comunidade</b> (posts consolidados e não revogados):
+      ${s.sugestoes.map((x,i) => `<div><label><input type="checkbox" class="mem" value="${esc(x.texto)}" checked>
+      ${esc(x.texto)} <span class="meta">(${esc(x.autor)}, reps ${x.reps_post})</span></label></div>`).join('')}</div>`
+      : '<p class="mut">Nenhuma rota/abrigo consolidado no histórico.</p>'}
+    <textarea id="protoTxt">PROTOCOLO: Bombeiros 193 / Defesa Civil 199</textarea>
+    <div class="row"><button class="red" id="protoBtn">Publicar protocolo</button></div>`;
+  $('#protoBtn').onclick = () => {
+    const memoria = [...document.querySelectorAll('.mem:checked')].map(c => c.value);
+    dlg.close(); acao({acao:'protocolo', alerta:id, texto:$('#protoTxt').value, memoria});
+  };
+  dlg.showModal();
+}
+
+async function avaliacao(id) {
+  let s; try { s = await get('/api/participantes', {alerta:id}); } catch (e) { return toast(e.message, true); }
+  $('#dlgBody').innerHTML = `<h2>⭐ Avaliação pós-emergência</h2>
+    <p class="mut">Quem participou deste alerta (emissão, confirmação, protocolo, coordenação ou encerramento). Like/dislike vão direto para a pessoa.</p>
+    <table>${s.participantes.map(p => `<tr><td><b>${esc(p.nome)}</b> <span class="meta">${p.reps} reps</span>
+      <div class="meta">${p.acoes.map(esc).join(', ')}</div></td>
+      <td style="white-space:nowrap">${p.nome === EST.usuario ? '<span class="mut">(você)</span>' : `<button class="green" data-p="${esc(p.pub)}" data-t="like">👍</button>
+      <button class="red" data-p="${esc(p.pub)}" data-t="dislike">👎</button>`}</td></tr>`).join('')}</table>`;
+  $('#dlgBody').querySelectorAll('button[data-p]').forEach(b => b.onclick = () => {
+    const n = prompt(`${b.dataset.t} — quantos reps?`, '1000'); if (!n) return;
+    dlg.close(); acao({acao:b.dataset.t, pessoa:b.dataset.p, n:+n, motivo:prompt('Motivo (opcional):') || ''});
+  });
+  dlg.showModal();
+}
+
+const dlg = $('#dlg');
+$('#user').onchange = carregar;
+carregar(); setInterval(carregar, 15000);
+</script>
+</body>
+</html>
