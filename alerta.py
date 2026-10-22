@@ -343,7 +343,7 @@ def cmd_info(app, a):
 
 def cmd_coletar(app, a):
     """Coleta diária de reps (máx. 1x por dia por usuário).
-    Usa a Regra 1.b (consolidação 24h -> +1.000 reps) para crescer a comunidade."""
+    Usa a regra consolidação 24h -> +1.000 reps para crescer a comunidade."""
     pub = app_signer_pub(a.sign)
     st = app.daily_status(pub)
     if st["coletado_hoje"]:
