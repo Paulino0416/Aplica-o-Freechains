@@ -31,6 +31,10 @@ CONFIRMADOR_MIN = 10000  # reps mínimos para uma confirmação contar
 CONFIRMACOES_MIN = 2     # confirmações válidas para virar CONFIRMADO
 COORDENADOR_MIN = 19000  # reps para ser COORDENADOR (publicar protocolo e encerrar)
 CONSOLIDADO_SEG = 24 * 3600  # post com 24h+ e não revogado = memória confiável
+JANELA_CONTRIB_SEG = 24 * 3600  # coleta diária exige contribuição em alerta nas últimas 24h
+TAGS_PARTICIPACAO = ("CONFIRMA", "PROTOCOLO", "COORD", "ENCERRA")  # formas de ajudar num alerta
+MSG_SEM_CONTRIB = ("🔒 Coleta bloqueada: nas últimas 24h você precisa ter emitido um alerta válido "
+                   "(ATIVO/CONFIRMADO) ou ajudado no alerta de alguém (confirmar, protocolo, coordenar ou encerrar).")
 
 DEFAULT_CHAIN = "#alertas-rio-madeira"
 
@@ -243,8 +247,36 @@ class App:
                 people.setdefault(p.author, []).append(f"{p.tag}:{short(p.id)}")
         return people
 
+    # --- coleta diária condicionada à contribuição ---
+    def alerta_valido(self, al: Post):
+        """Alerta 'válido' = não revogado e reconhecido pela comunidade:
+        ATIVO, CONFIRMADO, ou ENCERRADO depois de ter sido confirmado/ativo."""
+        if al.revoked:
+            return False
+        st, valid = self.status(al)
+        if st in ("ATIVO", "CONFIRMADO"):
+            return True
+        return st == "ENCERRADO" and (len(valid) >= CONFIRMACOES_MIN or self.reps(al.author) >= ATIVO_MIN)
+
+    def contribuicao_recente(self, pub):
+        """Retorna o motivo (texto) se o usuário contribuiu nas últimas 24h, senão None.
+        Conta: (a) ter emitido um alerta válido; ou (b) ter ajudado no alerta de outra
+        pessoa com [CONFIRMA], [PROTOCOLO], [COORD] ou [ENCERRA] não revogados."""
+        desde = self.now() - JANELA_CONTRIB_SEG
+        alertas = self.alerts()
+        for p in reversed(self.posts()):
+            if p.author != pub or p.revoked or p.time < desde:
+                continue
+            if p.tag == "ALERTA" and self.alerta_valido(p):
+                return f"emitiu o alerta válido [{short(p.id)}]"
+            if p.tag in TAGS_PARTICIPACAO and p.ref:
+                al = next((x for x in alertas if x.id.startswith(p.ref)), None)
+                if al and not al.revoked and al.author != pub:
+                    return f"{p.tag} no alerta [{short(al.id)}]"
+        return None
+
     def daily_status(self, pub):
-        """Verifica se o usuário já coletou seus reps diários hoje (1x por dia) e sua sequência."""
+        """Coleta diária: já coletou hoje? qual a sequência? está apto (contribuiu nas últimas 24h)?"""
         hoje = self.now() // 86400
         dias = {p.time // 86400 for p in self.posts() if p.tag == "COLETA" and p.author == pub and not p.revoked}
         coletado_hoje = hoje in dias
@@ -252,7 +284,9 @@ class App:
         d = hoje - 1
         while d in dias:
             seq, d = seq + 1, d - 1
-        return {"coletado_hoje": coletado_hoje, "sequencia": seq}
+        motivo = self.contribuicao_recente(pub)
+        return {"coletado_hoje": coletado_hoje, "sequencia": seq,
+                "apto": motivo is not None, "motivo": motivo}
 
 
 # --------------------------------------------------------------------------
@@ -342,15 +376,18 @@ def cmd_info(app, a):
 
 
 def cmd_coletar(app, a):
-    """Coleta diária de reps (máx. 1x por dia por usuário).
-    Usa a regra consolidação 24h -> +1.000 reps para crescer a comunidade."""
+    """Coleta diária de reps (máx. 1x por dia por usuário), liberada só para quem
+    contribuiu com um alerta nas últimas 24h. Usa a Regra 1.b (consolidação 24h -> +1.000 reps)."""
     pub = app_signer_pub(a.sign)
     st = app.daily_status(pub)
     if st["coletado_hoje"]:
         raise SystemExit("⏳ Você já coletou seus reps diários hoje (limite: 1x por dia). Volte amanhã!")
+    if not st["apto"]:
+        raise SystemExit(MSG_SEM_CONTRIB)
     antes = app.reps(pub)
     cid = app.fc.post("[COLETA] Coleta diaria de reps", a.sign)
     seq = st["sequencia"] + 1
+    print(f"✔ Contribuição reconhecida: {st['motivo']}")
     print(f"🎁 Coleta diária registrada: {cid}")
     print(f"Reps antes: {antes} (custo temporário de 500 descontado agora, devolvido em até 12h)")
     print(f"🔥 Sequência ativa: {seq} dia(s). Em 24h o protocolo consolida e credita +1.000 reps!")

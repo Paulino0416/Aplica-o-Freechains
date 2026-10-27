@@ -56,19 +56,8 @@ echo "== Memória: rota e abrigo publicados semanas antes =="
 APP "$N1" $((T0+1*DAY))    info "ROTA enchente Rua Amazonas: Av. Madeira -> Morro do Cruzeiro" --sign="$K/fernando"
 APP "$N1" $((T0+1*DAY+60)) info "ABRIGO enchente Rua Amazonas: Escola Municipal, 50 vagas" --sign="$K/gisele"
 
-echo "== Coleta Diária de Reps (1x/dia para usuários ativos) =="
-# Reps ANTES das coletas diárias
-REPS () { for u in fernando gisele eva joao; do
-    printf '   %-9s %s\n' "$u" "$(freechains --root="$N1" --now="$1" chain "$C" reps author "$K/$u.pub")"; done; }
-echo "-- reps antes (dia 2):"; REPS $((T0+2*DAY))
-# 5 dias seguidos: Eva e Gisele (usuárias ativas) clicam em Coletar 1x por dia
-for d in 2 3 4 5 6; do
-    APP "$N1" $((T0+d*DAY+3600)) coletar --sign="$K/eva"
-    APP "$N1" $((T0+d*DAY+3700)) coletar --sign="$K/gisele"
-done
-# Fernando e João não coletam: servem de comparação
-echo "-- reps depois (dia 8, todas as coletas já passaram de 24h):"; REPS $((T0+8*DAY))
-echo "   (quem coletou diariamente ganhou +5.000 reps novos; quem ficou inativo não ganhou)"
+echo "== Coleta diária ANTES da crise: ninguém contribuiu com alerta ainda => bloqueada =="
+APP "$N1" $((T0+2*DAY)) coletar --sign="$K/gisele"
 APP "$N2" $((T0+8*DAY+60)) sync localhost:$P1
 
 T=$((T0+30*DAY))
@@ -102,6 +91,16 @@ APP "$N1" $((T+400)) coord "$ALERTA" "Levando barco, preciso de 2 voluntarios" -
 APP "$N1" $((T+500)) coord "$ALERTA" "Escola aberta, 12 pessoas" --sign="$K/gisele"
 APP "$N1" $((T+600)) painel
 APP "$N1" $((T+600)) ver "$ALERTA"
+
+echo "== Coleta diária DEPOIS de ajudar: só quem contribuiu com um alerta válido nas últimas 24h =="
+APP "$N2" $((T+690)) sync localhost:$P1
+APP "$N2" $((T+700)) coletar --sign="$K/eva"        # emitiu alerta CONFIRMADO => libera
+APP "$N2" $((T+710)) coletar --sign="$K/eva"        # 2ª vez no mesmo dia => bloqueada
+APP "$N2" $((T+720)) coletar --sign="$K/joao"       # alerta falso foi revogado => bloqueada
+APP "$N1" $((T+730)) sync localhost:$P2
+APP "$N1" $((T+740)) coletar --sign="$K/fernando"   # confirmou, protocolo e coordenou => libera
+APP "$N1" $((T+750)) coletar --sign="$K/gisele"     # confirmou e coordenou => libera
+APP "$N2" $((T+760)) sync localhost:$P1
 
 echo "== Encerramento e Fase 5: avaliação =="
 APP "$N1" $((T+DAY))     encerrar "$ALERTA" "Todos resgatados" --sign="$K/fernando"

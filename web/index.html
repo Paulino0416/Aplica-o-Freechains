@@ -154,14 +154,18 @@ async function carregar() {
      <i>Limiares da aplicação (UI), não do protocolo.</i>`;
 
   const ja = EST.coletado_hoje;
+  const apto = EST.apto_coleta;
   const seq = EST.sequencia || 0;
-  $('#btnColetar').disabled = ja;
-  $('#btnColetarCard').disabled = ja;
-  $('#btnColetar').textContent = ja ? `✔ Coletado hoje (🔥 ${seq}d)` : '🎁 Coletar Reps Diários (+1.000)';
-  $('#btnColetarCard').textContent = ja ? `✔ Já coletado hoje (volte amanhã)` : '🎁 Coletar +1.000 Reps Diários';
+  const bloq = ja || !apto;
+  $('#btnColetar').disabled = bloq;
+  $('#btnColetarCard').disabled = bloq;
+  $('#btnColetar').textContent = ja ? `✔ Coletado hoje (🔥 ${seq}d)` : apto ? '🎁 Coletar Reps Diários (+1.000)' : '🔒 Coleta bloqueada';
+  $('#btnColetarCard').textContent = ja ? `✔ Já coletado hoje (volte amanhã)` : apto ? '🎁 Coletar +1.000 Reps Diários' : '🔒 Ajude num alerta para liberar';
   $('#statusColeta').innerHTML = ja
       ? `<b>🔥 Sequência: ${seq} dia(s) ativo(s).</b> Você já fez sua coleta hoje (limite: 1x/dia). Em 24h o protocolo consolida e credita +1.000 reps.`
-      : `Usuários ativos podem coletar <b>1x por dia</b> (+1.000 reps após 24h pela Regra 1.b de consolidação). Sequência atual: <b>🔥 ${seq} dia(s)</b>.`;
+      : apto
+      ? `✔ <b>Liberada:</b> ${esc(EST.motivo_coleta)}.<br>Colete <b>1x por dia</b> (+1.000 reps após 24h). Sequência: <b>🔥 ${seq} dia(s)</b>.`
+      : `🔒 <b>Para coletar</b>, nas últimas 24h você precisa ter <b>emitido um alerta válido</b> (ATIVO/CONFIRMADO) ou <b>ajudado no alerta de alguém</b> (confirmar, protocolo, coordenar ou encerrar).`;
 
   const max = Math.max(1, ...EST.ranking.map(r => r.reps));
   $('#ranking').innerHTML = EST.ranking.map(r => `<tr>

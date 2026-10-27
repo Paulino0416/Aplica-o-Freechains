@@ -122,6 +122,7 @@ def api_estado(q):
     return {
         "usuario": nome, "meus_reps": app.reps(meu_pub), "meu_papel": papel(app.reps(meu_pub)),
         "coletado_hoje": diario["coletado_hoje"], "sequencia": diario["sequencia"],
+        "apto_coleta": diario["apto"], "motivo_coleta": diario["motivo"],
         "alertas": alertas,
         "revogados": [post_json(app, p) for p in app.revoked_alerts()],
         "infos": [post_json(app, p) for p in app.posts() if p.tag == "INFO" and not p.revoked][-10:],
@@ -172,6 +173,8 @@ def api_acao(body):
         st = app.daily_status(meu_pub)
         if st["coletado_hoje"]:
             raise ValueError("⏳ Você já coletou seus reps diários hoje (limite: 1x por dia). Volte amanhã!")
+        if not st["apto"]:
+            raise ValueError(A.MSG_SEM_CONTRIB)
         cid = fc.post("[COLETA] Coleta diaria de reps", k, beg=body.get("beg", False))
         sincronizar_todos(now)
         seq = st["sequencia"] + 1
@@ -249,6 +252,9 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(u.query)
         if u.path in ("/", "/index.html"):
             with open(os.path.join(AQUI, "web", "index.html"), "rb") as f:
+                return self._send(200, f.read(), "text/html; charset=utf-8")
+        if u.path in ("/apresentacao", "/apresentacao.html"):
+            with open(os.path.join(AQUI, "apresentacao.html"), "rb") as f:
                 return self._send(200, f.read(), "text/html; charset=utf-8")
         routes = {"/api/estado": api_estado, "/api/sugestoes": api_sugestoes,
                   "/api/participantes": api_participantes}

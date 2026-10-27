@@ -57,7 +57,7 @@ Na página:
 | Elemento | Função |
 |---|---|
 | **Usuário (nó)** | troca entre Defesa Civil, Fernando, Eva, Gisele e João; mostra seus reps e papel |
-| **🎁 Coletar Reps Diários (+1.000)** | botão de coleta diária (limite de 1x por dia por usuário ativo, gerando +1.000 reps após 24h pela consolidação do protocolo) |
+| **🎁 Coletar Reps Diários (+1.000)** | botão de coleta diária (1x/dia, liberado **apenas para quem emitiu um alerta válido ou participou ajudando em um alerta nas últimas 24h**; gera +1.000 reps após 24h pela consolidação do protocolo) |
 | **Emitir alerta / Publicar informação** | posta `[ALERTA]` ou `[INFO]`; "sem reps (--beg)" para novatos |
 | **Cartões de alerta** | cor por estado (cinza PENDENTE, vermelho ATIVO, vermelho pulsando CONFIRMADO, verde ENCERRADO) e a thread de respostas |
 | ✅ Confirmar | post `[CONFIRMA]` + like opcional no alerta |
@@ -79,7 +79,7 @@ Para usar com chaves e nós próprios, edite o `usuarios.json`:
 ### Comandos (CLI)
 | Comando | Fase | O que faz |
 |---|---|---|
-| `coletar --sign=K` | – | Coleta diária de reps (1x por dia; gera +1.000 reps após 24h pela consolidação) |
+| `coletar --sign=K` | – | Coleta diária de reps (1x/dia, condicionada a ter emitido um alerta válido ou ajudado em um alerta nas últimas 24h; gera +1.000 reps após 24h pela consolidação) |
 | `alertar "<texto>" --sign=K [--beg]` | 1 | Publica `[ALERTA]` e mostra o estado e os coordenadores a notificar. Use `--beg` se você não tem reps. |
 | `confirmar <id> "<texto>" --sign=K [--like N]` | 2 | Publica `[CONFIRMA id]` e, se pedido, dá um like no alerta |
 | `protocolo <id> [--texto "..."] [--usar-memoria] --sign=K` | 3 | Busca rotas e abrigos **consolidados** no histórico e publica `[PROTOCOLO id]` (restrito a COORDENADOR) |
@@ -97,10 +97,12 @@ Para usar com chaves e nós próprios, edite o `usuarios.json`:
 
 ### Exemplo rápido
 ```bash
-python3 alerta.py coletar --sign=~/.ssh/eva
 python3 alerta.py alertar "Rio subiu 2 m em 3 h. Rua Amazonas alagada." --sign=~/.ssh/eva
 python3 alerta.py painel
 python3 alerta.py confirmar a1b2c3d "Confirmo no local" --like 1000 --sign=~/.ssh/fernando
+python3 alerta.py confirmar a1b2c3d "Agua chegou na escola" --like 500 --sign=~/.ssh/gisele
+python3 alerta.py coletar --sign=~/.ssh/eva       # liberado pois emitiu alerta válido (CONFIRMADO)
+python3 alerta.py coletar --sign=~/.ssh/fernando  # liberado pois ajudou confirmando o alerta
 python3 alerta.py protocolo a1b2c3d --usar-memoria --texto "Bombeiros 193" --sign=~/.ssh/fernando
 python3 alerta.py encerrar a1b2c3d "Todos resgatados" --sign=~/.ssh/fernando
 python3 alerta.py participantes a1b2c3d
@@ -110,7 +112,7 @@ python3 alerta.py participantes a1b2c3d
 ```bash
 bash demo.sh
 ```
-Cria 2 nós, uma pioneira, voluntários e um troll. Simula 5 dias de coletas diárias de reps e depois percorre as 5 fases com `--now`, incluindo a revogação do alarme falso.
+Cria 2 nós, uma pioneira, voluntários e um troll. Percorre as 5 fases com `--now`, incluindo a revogação do alarme falso e a validação da coleta diária condicionada à participação em alertas válidos.
 
 ---
 
@@ -125,7 +127,10 @@ Cria 2 nós, uma pioneira, voluntários e um troll. Simula 5 dias de coletas di�
    | ✅ ENCERRADO | existe um `[ENCERRA id]` publicado por um **COORDENADOR** (≥ 19.000 reps) ou pelo próprio autor enquanto PENDENTE |
    | 🚫 REVOGADO | `get payload` falha (payload revogado pelo protocolo) |
 2. **Convenção de mensagens** no payload (`[ALERTA]`, `[CONFIRMA id]`, `[PROTOCOLO id]`, `[COORD id]`, `[ENCERRA id]`, `[INFO]`, `[COLETA]`), usada para montar threads sem alterar o formato dos posts do protocolo.
-3. **Coleta diária de reps (1x/dia)**: botão `🎁 Coletar Reps Diários (+1.000)` e comando `coletar` que permitem a usuários ativos coletar 1 vez por dia (+1.000 reps após 24h pela Regra 1.b de consolidação do protocolo), travando novas coletas no mesmo dia e contabilizando a sequência de dias seguidos (`🔥`).
+3. **Coleta diária de reps condicionada à contribuição (1x/dia)**: botão `🎁 Coletar Reps Diários (+1.000)` e comando `coletar` (gerando +1.000 reps após 24h pela Regra 1.b de consolidação do protocolo) liberados **exclusivamente para quem contribuiu nas últimas 24h**:
+   - **Emitindo um alerta válido** (que atingiu estado `ATIVO` ou `CONFIRMADO`, e não foi revogado); **ou**
+   - **Participando/ajudando no alerta de outra pessoa** (com `[CONFIRMA]`, `[PROTOCOLO]`, `[COORD]` ou `[ENCERRA]` não revogados).
+   - Usuários sem contribuição recente ou que emitiram apenas alarmes falsos/revogados ficam com a coleta bloqueada (`🔒`). Limite de 1 coleta por dia com contagem de sequência (`🔥`).
 4. **Papéis por reputação e controle de permissões na UI/aplicação**:
    - `membro` (< 10.000 reps): emite alertas (que nascem `PENDENTE`), coordena e vota.
    - `CONFIRMADOR` (≥ 10.000 reps): suas confirmações contam para validar alertas pendentes.
